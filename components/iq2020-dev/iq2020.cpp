@@ -143,8 +143,10 @@ void IQ2020Component::loop() {
 	}
 	//check if pin goes high, if it does then lets log something... for now...
 	bool pinState = this->trigger_poll_pin_->digital_read();
-	if(pinState){
+	//grace period if the event hasnt fired in the last second
+	if(pinState && (now - last_pin_check_time >= 1000)){
 		ESP_LOGD(TAG, "Trigger Pin High!");
+		last_pin_check_time = now; // Update the last check time
 	}
 
 
