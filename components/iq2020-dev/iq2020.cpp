@@ -141,6 +141,13 @@ void IQ2020Component::loop() {
 #endif
 		connectionKit = 1;
 	}
+	//check if pin goes high, if it does then lets log something... for now...
+	bool pinState = this->trigger_poll_pin_->digital_read();
+	if(pinState){
+		ESP_LOGD(TAG, "Trigger Pin High!");
+	}
+
+
 	if (next_poll < now) { next_poll = now + 5000; pollState(); }
 }
 
