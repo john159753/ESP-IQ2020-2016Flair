@@ -341,7 +341,7 @@ int IQ2020Component::processIQ2020Command() {
 		//ESP_LOGD(TAG, "SCK CMD Data, len=%d, cmd=%02x%02x", cmdlen, processingBuffer[5], processingBuffer[6]);
 	}
 
-	if ((processingBuffer[1] == 0x33) && (processingBuffer[2] == 0x01) && (processingBuffer[4] == 0x40) && (cmdlen >= 8)) {
+	if ((processingBuffer[1] == 0x1D) && (processingBuffer[2] == 0x01) && (processingBuffer[4] == 0x40) && (cmdlen >= 8)) {
 		// This is a command from IQ2020 to the audio module
 		//ESP_LOGD(TAG, "Audio REQ Data, len=%d, cmd=%02x%02x", cmdlen, processingBuffer[5], processingBuffer[6]);
 
@@ -382,7 +382,7 @@ int IQ2020Component::processIQ2020Command() {
 					memcpy(text + 2, g_iq2020_text[TEXT_SONG_TITLE]->text_value.c_str(), text_len - 2);
 				}
 #endif
-				sendIQ2020Command(0x01, 0x33, 0x80, (unsigned char*)text, text_len);
+				sendIQ2020Command(0x01, 0x1D, 0x80, (unsigned char*)text, text_len);
 				responded = 1;
 			}
 			else if (processingBuffer[6] == 0x07) { // Artist name
@@ -396,7 +396,7 @@ int IQ2020Component::processIQ2020Command() {
 					memcpy(text + 2, g_iq2020_text[TEXT_ARTIST_NAME]->text_value.c_str(), text_len - 2);
 				}
 #endif
-				sendIQ2020Command(0x01, 0x33, 0x80, (unsigned char*)text, text_len);
+				sendIQ2020Command(0x01, 0x1D, 0x80, (unsigned char*)text, text_len);
 				responded = 1;
 			}
 		}
@@ -406,7 +406,7 @@ int IQ2020Component::processIQ2020Command() {
 			//ESP_LOGD(TAG, "AUDIO - Enumlate");
 			unsigned char cmd[] = { 0x19, 0x01, 0x00, 0x19, 0x00, 0x00, 0x00, 0x0B, 0x00, 0x04, 0x01, 0x00, 0x00 };
 			//unsigned char cmd[] = { processingBuffer[5], processingBuffer[6] }; // Echo back the command with no data
-			sendIQ2020Command(0x01, 0x33, 0x80, cmd, sizeof(cmd));
+			sendIQ2020Command(0x01, 0x1D, 0x80, cmd, sizeof(cmd));
 		}
 	}
 
