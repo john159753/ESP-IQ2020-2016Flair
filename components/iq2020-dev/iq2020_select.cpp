@@ -5,7 +5,7 @@
 extern IQ2020Component* g_iq2020_main;
 extern esphome::iq2020_select::IQ2020Select* g_iq2020_select[SELECTCOUNT];
 
-std::vector<std::string> audio_source_values = { "TV", "Aux", "Bluetooth", "iPOD" };
+std::vector<std::string> audio_source_values = { "iPOD", "TV", "Aux", "Bluetooth" };
 std::vector<std::string> lights_colors_values = { "Violet", "Blue", "Cyan", "Green", "White", "Yellow", "Red", "Cycle" };
 std::vector<std::string> lights_cycle_speed = { "Off", "Slow", "Normal", "Fast" };
 
@@ -45,8 +45,9 @@ namespace iq2020_select {
 		this->publish_state(value);
 		if (g_iq2020_main == NULL) return;
 		if (select_id == SELECT_AUDIO_SOURCE) {
-			// Audio source: TV = 2, Aux = 3, Bluetooth = 4
-			if (value.compare("TV") == 0) { g_iq2020_main->selectAction(select_id, 2); }
+			// Audio source: iPOD = 1, TV = 2, Aux = 3, Bluetooth = 4
+			if (value.compare("iPOD") == 0) { g_iq2020_main->selectAction(select_id, 1); }
+			else if (value.compare("TV") == 0) { g_iq2020_main->selectAction(select_id, 2); }
 			else if (value.compare("Aux") == 0) { g_iq2020_main->selectAction(select_id, 3); }
 			else if (value.compare("Bluetooth") == 0) { g_iq2020_main->selectAction(select_id, 4); }
 		} else if (select_id == SELECT_LIGHTS_CYCLE_SPEED) {

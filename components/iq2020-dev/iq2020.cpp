@@ -145,8 +145,9 @@ void IQ2020Component::loop() {
 	bool pinState = this->trigger_poll_pin_->digital_read();
 	//grace period if the event hasnt fired in the last second
 	if(pinState && (now - last_pin_check_time >= 1000)){
-		ESP_LOGD(TAG, "Trigger Pin High!");
+		ESP_LOGD(TAG, "Trigger Pin High, issuing poll.");
 		last_pin_check_time = now; // Update the last check time
+		pollState();
 	}
 
 
