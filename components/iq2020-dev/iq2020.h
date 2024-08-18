@@ -255,7 +255,7 @@ protected:
 	int pending_temp_retry = 0;
 	unsigned long next_poll = 0;
 	unsigned long next_retry = 0;
-	unsigned long last_pin_check_time = 0
+	unsigned long last_pin_check_time = 0;
 	int next_retry_count = 0;
 	int salt_power = NOT_SET; // This is polled too frequently to send to HA each time.
 	int salt_content = NOT_SET; // This is polled too frequently to send to HA each time.
