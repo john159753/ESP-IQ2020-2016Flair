@@ -374,7 +374,7 @@ int IQ2020Component::processIQ2020Command() {
 			else if ((processingBuffer[6] == 0x00) && (processingBuffer[7] == 0x01) && (cmdlen == 14)) { // Audio settings
 #ifdef USE_NUMBER
 				ESP_LOGD(TAG, "AUDIO - Volume=%d, Treble=%d, Bass=%d, Balance=%d, Subwoofer=%d", processingBuffer[8], processingBuffer[9], processingBuffer[10], processingBuffer[11], processingBuffer[12]);
-				setNumberState(NUMBER_AUDIO_VOLUME, (processingBuffer[8]);
+				setNumberState(NUMBER_AUDIO_VOLUME, (signed char)processingBuffer[8]);
 				setNumberState(NUMBER_AUDIO_TREBLE, (signed char)(processingBuffer[9]));
 				setNumberState(NUMBER_AUDIO_BASS, (signed char)(processingBuffer[10]));
 				setNumberState(NUMBER_AUDIO_BALANCE, (signed char)(processingBuffer[11]));
@@ -505,7 +505,7 @@ int IQ2020Component::processIQ2020Command() {
 			setSelectState(SELECT_AUDIO_SOURCE, processingBuffer[14]); // Audio Source
 #endif
 #ifdef USE_NUMBER
-			setNumberState(NUMBER_AUDIO_VOLUME, (processingBuffer[8]);
+			setNumberState(NUMBER_AUDIO_VOLUME, (signed char)processingBuffer[8]);
 			setNumberState(NUMBER_AUDIO_TREBLE, (signed char)processingBuffer[9]);
 			setNumberState(NUMBER_AUDIO_BASS, (signed char)processingBuffer[10]);
 			setNumberState(NUMBER_AUDIO_BALANCE, (signed char)processingBuffer[11]);
