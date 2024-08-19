@@ -6,7 +6,7 @@ extern IQ2020Component* g_iq2020_main;
 extern esphome::iq2020_select::IQ2020Select* g_iq2020_select[SELECTCOUNT];
 
 std::vector<std::string> audio_source_values = { "iPOD", "TV", "Aux", "Bluetooth" };
-std::vector<std::string> lights_colors_values = { "Blue", "Aqua", "Green", "White", "Yellow", "Red", "Magenta", "Cycle", "Cycle Off" };
+std::vector<std::string> lights_colors_values = { "Cycle Off", "Blue", "Aqua", "Green", "White", "Yellow", "Red", "Magenta", "Cycle"};
 std::vector<std::string> lights_cycle_speed = { "Off", "Slow", "Normal", "Fast" };
 
 namespace esphome {
@@ -58,7 +58,7 @@ namespace iq2020_select {
 		} else {
 			// Lights color
 			for (int i = 0; i < this->traits.get_options().size(); i++) {
-				if (value.compare(this->traits.get_options()[i]) == 0) { g_iq2020_main->selectAction(select_id, i + 1); }
+				if (value.compare(this->traits.get_options()[i]) == 0) { g_iq2020_main->selectAction(select_id, i); }//testing this to stop crashes, was i + 1
 			}
 		}
 	}
