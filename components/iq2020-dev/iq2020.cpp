@@ -981,7 +981,7 @@ void IQ2020Component::numberAction(unsigned int numberid, int value) {
 	case NUMBER_AUDIO_VOLUME:
 	{
 		number_pending[NUMBER_AUDIO_VOLUME] = value;
-		unsigned char cmd[] = { 0x19, 0x00, 0x01, (unsigned char)((value >> 2) + 15) };
+		unsigned char cmd[] = { 0x19, 0x00, 0x01, (unsigned char)(value) };
 		sendIQ2020Command(0x01, 0x1F, 0x40, cmd, sizeof(cmd)); // Change volume
 		break;
 	}
