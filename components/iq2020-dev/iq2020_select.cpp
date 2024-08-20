@@ -58,7 +58,7 @@ namespace iq2020_select {
 		} else {
 			// Lights color
 			for (int i = 0; i < this->traits.get_options().size(); i++) {
-				if (value.compare(this->traits.get_options()[i]) == 0) { g_iq2020_main->selectAction(select_id, i); }//testing this to stop crashes, was i + 1
+				if (value.compare(this->traits.get_options()[i]) == 0) { g_iq2020_main->selectAction(select_id, i + 1); }//testing this to stop crashes, was i + 1
 			}
 		}
 	}
