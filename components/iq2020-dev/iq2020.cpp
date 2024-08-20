@@ -941,9 +941,9 @@ void IQ2020Component::selectAction(unsigned int selectid, int state) {
 		int current = select_state[selectid];
 		int cmdsent = 0;
 		while (current != state) {
-			if ((state == 8) && (current < 8)) {
+			if ((state == 8) && (current < 9)) {
 				//ESP_LOGD(TAG, "** MOVE TO CYCLE %d", selectid);
-				unsigned char cmd[] = { 0x17, 0x02, (unsigned char)(selectid), 0x08 }; //removed -1
+				unsigned char cmd[] = { 0x17, 0x02, (unsigned char)(selectid - 1), 0x08 };
 				sendIQ2020Command(0x01, 0x1F, 0x40, cmd, sizeof(cmd)); // Enable cycle state
 				cmdsent = 1;
 				current = state;
@@ -951,13 +951,13 @@ void IQ2020Component::selectAction(unsigned int selectid, int state) {
 				if (select_state[SELECT_LIGHTS_CYCLE_SPEED] == 0) { select_pending[SELECT_LIGHTS_CYCLE_SPEED] = 2; }
 			} else if (current > state) {
 				//ESP_LOGD(TAG, "** MOVE DOWN %d from %d to %d", selectid, current, select_pending[selectid]);
-				unsigned char cmd[] = { 0x17, 0x02, (unsigned char)(selectid), 0x04 }; //removed -1
+				unsigned char cmd[] = { 0x17, 0x02, (unsigned char)(selectid - 1), 0x04 };
 				sendIQ2020Command(0x01, 0x1F, 0x40, cmd, sizeof(cmd)); // Previous color
 				cmdsent = 1;
 				current--;
 			} else if (current < state) {
 				//ESP_LOGD(TAG, "** MOVE UP %d from %d to %d", selectid, current, select_pending[selectid]);
-				unsigned char cmd[] = { 0x17, 0x02, (unsigned char)(selectid), 0x05 }; //removed -1
+				unsigned char cmd[] = { 0x17, 0x02, (unsigned char)(selectid - 1), 0x05 };
 				sendIQ2020Command(0x01, 0x1F, 0x40, cmd, sizeof(cmd)); // Next color
 				cmdsent = 1;
 				current++;
