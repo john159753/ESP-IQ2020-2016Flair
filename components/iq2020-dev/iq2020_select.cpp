@@ -76,7 +76,7 @@ namespace iq2020_select {
 			}
 		} else {
 			if (this->traits.get_options().size() >= value) {
-				if(value == 0) { value = 8 } //attempt to keep from going to negative index
+				if(value == 0) { value = 8; } //attempt to keep from going to negative index
 				this->publish_state(this->traits.get_options()[value - 1]);
 			}
 		}
