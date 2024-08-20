@@ -943,7 +943,7 @@ void IQ2020Component::selectAction(unsigned int selectid, int state) {
 		while (current != state) {
 			if ((state == 8) && (current < 8)) {
 				//ESP_LOGD(TAG, "** MOVE TO CYCLE %d", selectid);
-				unsigned char cmd[] = { 0x17, 0x02, (unsigned char)(selectid - 1), 0x08 };
+				unsigned char cmd[] = { 0x17, 0x02, (unsigned char)(selectid - 1), 0x07 }; // this needed to be changed to 0x07 for my model. 0x06 stops the cycle. 0x08 and 0x09 dont do anything and i dont have cycle speed 
 				sendIQ2020Command(0x01, 0x1F, 0x40, cmd, sizeof(cmd)); // Enable cycle state
 				cmdsent = 1;
 				current = state;
