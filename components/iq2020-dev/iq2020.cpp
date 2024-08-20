@@ -55,7 +55,7 @@ void IQ2020Component::setup() {
 	g_iq2020_main = this;
 	if (this->flow_control_pin_ != nullptr) { this->flow_control_pin_->setup(); }
 	if (this->trigger_poll_pin_ != nullptr) { 
-		this->trigger_poll_pin_->pin_mode(gpio::FLAG_PULLUP);
+		this->trigger_poll_pin_->pin_mode(gpio::FLAG_INPUT);
 		this->trigger_poll_pin_->setup(); 
 
 	}
