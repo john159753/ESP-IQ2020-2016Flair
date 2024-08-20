@@ -26,7 +26,7 @@ namespace iq2020_select {
 		case SELECT_LIGHTS2_COLOR:
 		case SELECT_LIGHTS3_COLOR:
 		case SELECT_LIGHTS4_COLOR:
-			if ((this->traits.get_options().size() < 7) || (this->traits.get_options().size() > 9)) { //changed to 9
+			if ((this->traits.get_options().size() < 7) || (this->traits.get_options().size() > 10)) { //changed to 9
 				this->traits.set_options(lights_colors_values);
 			}
 			break;
@@ -66,7 +66,7 @@ namespace iq2020_select {
 	void IQ2020Select::publish_state_ex(int value) {
 		ESP_LOGD(TAG, "Select:%d publish_state_ex: %d", select_id, value);
 		if (select_id == SELECT_AUDIO_SOURCE) { // Audio Source, TV = 2, Aux = 3, Bluetooth = 4
-			//if (value == 1) { this->publish_state("iPOD"); }
+			if (value == 1) { this->publish_state("iPOD"); }
 			if (value == 2) { this->publish_state("TV"); }
 			if (value == 3) { this->publish_state("Aux"); }
 			if (value == 4) { this->publish_state("Bluetooth"); }
