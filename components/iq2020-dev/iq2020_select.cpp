@@ -6,7 +6,7 @@ extern IQ2020Component* g_iq2020_main;
 extern esphome::iq2020_select::IQ2020Select* g_iq2020_select[SELECTCOUNT];
 
 std::vector<std::string> audio_source_values = { "iPOD", "TV", "Aux", "Bluetooth" };
-std::vector<std::string> lights_colors_values = { "Cycle Off", "Blue", "Aqua", "Green", "White", "Yellow", "Red", "Magenta", "Cycle"};
+std::vector<std::string> lights_colors_values = { "Blue", "Aqua", "Green", "White", "Yellow", "Red", "Magenta", "Cycle"};
 std::vector<std::string> lights_cycle_speed = { "Off", "Slow", "Normal", "Fast" };
 
 namespace esphome {
@@ -26,7 +26,7 @@ namespace iq2020_select {
 		case SELECT_LIGHTS2_COLOR:
 		case SELECT_LIGHTS3_COLOR:
 		case SELECT_LIGHTS4_COLOR:
-			if ((this->traits.get_options().size() < 7) || (this->traits.get_options().size() > 10)) { //changed to 9
+			if ((this->traits.get_options().size() < 7) || (this->traits.get_options().size() > 8)) {
 				this->traits.set_options(lights_colors_values);
 			}
 			break;
@@ -58,7 +58,7 @@ namespace iq2020_select {
 		} else {
 			// Lights color
 			for (int i = 0; i < this->traits.get_options().size(); i++) {
-				if (value.compare(this->traits.get_options()[i]) == 0) { g_iq2020_main->selectAction(select_id, i); }//testing this to stop crashes, was i + 1
+				if (value.compare(this->traits.get_options()[i]) == 0) { g_iq2020_main->selectAction(select_id, i + 1); }
 			}
 		}
 	}
@@ -66,7 +66,7 @@ namespace iq2020_select {
 	void IQ2020Select::publish_state_ex(int value) {
 		ESP_LOGD(TAG, "Select:%d publish_state_ex: %d", select_id, value);
 		if (select_id == SELECT_AUDIO_SOURCE) { // Audio Source, TV = 2, Aux = 3, Bluetooth = 4
-			//if (value == 1) { this->publish_state("iPOD"); }
+			if (value == 1) { this->publish_state("iPOD"); }
 			if (value == 2) { this->publish_state("TV"); }
 			if (value == 3) { this->publish_state("Aux"); }
 			if (value == 4) { this->publish_state("Bluetooth"); }
@@ -76,7 +76,7 @@ namespace iq2020_select {
 			}
 		} else {
 			if (this->traits.get_options().size() >= value) {
-				this->publish_state(this->traits.get_options()[value]); //random guess removed  - 1
+				this->publish_state(this->traits.get_options()[value - 1]);
 			}
 		}
 	}
