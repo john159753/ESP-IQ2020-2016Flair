@@ -2,6 +2,7 @@
 #include "esphome/core/component.h"
 #include "esphome/components/socket/socket.h"
 #include "esphome/components/uart/uart.h"
+#include "esphome/components/api/custom_api_device.h"
 
 #ifdef USE_BINARY_SENSOR
 #include "esphome/components/binary_sensor/binary_sensor.h"
@@ -18,12 +19,13 @@
 #include <vector>
 
 #define IQ202BUFLEN 512
+#define IQ2020OUTBUFLEN 64
 #define FANCOUNT 4
 #define FAN_JETS1 0
 #define FAN_JETS2 1
 #define FAN_JETS3 2
 #define FAN_JETS4 3
-#define SWITCHCOUNT 9
+#define SWITCHCOUNT 11
 #define SWITCH_RETRY_COUNT 3
 #define SWITCH_RETRY_TIME 200
 #define SWITCH_LIGHTS 0
@@ -35,6 +37,8 @@
 #define SWITCH_JETS2 6
 #define SWITCH_JETS3 7
 #define SWITCH_SALT_BOOST 8
+#define SWITCH_AUDIO_POWER 9
+#define SWITCH_ACTIVE 10               // Don't send anything on RS485 bus when disabled
 #define SELECTCOUNT 6
 #define SELECT_AUDIO_SOURCE 0
 #define SELECT_LIGHTS1_COLOR 1         // Underwater lights color (0 to 7 for colors, 8 for cycle)
@@ -47,7 +51,7 @@
 #define TEXT_ARTIST_NAME 1             // Artist name (Max 20 chars)
 #define NUMBERCOUNT 11
 #define NUMBER_AUDIO_VOLUME 0          // Audio volume (0 to 100, steps of 4)
-#define NUMBER_AUDIO_TREBLE 1         // Audio treble (-5 to 5)
+#define NUMBER_AUDIO_TREBLE 1          // Audio treble (-5 to 5)
 #define NUMBER_AUDIO_BASS 2            // Audio base (-5 to 5)
 #define NUMBER_AUDIO_BALANCE 3         // Audio balance (-5 to 5)
 #define NUMBER_AUDIO_SUBWOOFER 4       // Audio subwoofer (0 to 11) - "This one goes to 11".
@@ -59,7 +63,7 @@
 #define NUMBER_LIGHTS4_INTENSITY 10    // Exterior lights intensity (0 to 5)
 #define NOT_SET -127
 
-class IQ2020Component : public esphome::Component {
+class IQ2020Component : public esphome::Component, public esphome::api::CustomAPIDevice {
 public:
 	IQ2020Component() = default;
 	explicit IQ2020Component(esphome::uart::UARTComponent *stream) : stream_{ stream } {}
@@ -67,14 +71,17 @@ public:
 	void set_buffer_size(size_t size) { this->buf_size_ = size; }
 	void set_flow_control_pin(esphome::GPIOPin *flow_control_pin) { this->flow_control_pin_ = flow_control_pin; }
 	void set_trigger_poll_pin(esphome::GPIOPin *trigger_poll_pin) { this->trigger_poll_pin_ = trigger_poll_pin; }
+	void set_legacy_polling(bool legacy_polling) { this->legacy_polling_ = legacy_polling; }
 	void set_ace_emulation(bool ace_emulation) { this->ace_emulation_ = ace_emulation; }
 	void set_freshwater_emulation(bool freshwater_emulation) { this->freshwater_emulation_ = freshwater_emulation; }
 	void set_audio_emulation(bool audio_emulation) { this->audio_emulation_ = audio_emulation; }
+	void set_active(bool active) { this->active_ = active; setSwitchState(SWITCH_ACTIVE, active_); }
 	void set_polling_rate(int polling_rate) { this->polling_rate_ = polling_rate; }
 #ifdef USE_BINARY_SENSOR
 	void set_connected_sensor(esphome::binary_sensor::BinarySensor *connected) { this->connected_sensor_ = connected; }
 	void set_connectionkit_sensor(esphome::binary_sensor::BinarySensor *present) { this->connectionkit_sensor_ = present; }
 	void set_salt_boost_sensor(esphome::binary_sensor::BinarySensor *present) { this->salt_boost_sensor_ = present; }
+	void set_salt_confirmed_sensor(esphome::binary_sensor::BinarySensor *present) { this->salt_confirmed_sensor_ = present; }
 #endif
 #ifdef USE_SENSOR
 	void set_current_f_temp_sensor(esphome::sensor::Sensor *temp) { this->current_f_temp_sensor_ = temp; }
@@ -118,6 +125,13 @@ public:
 	void set_lights_color_pillow_sensor(esphome::sensor::Sensor *sensor) { this->lights_color_pillow_sensor_ = sensor; }
 	void set_lights_color_exterior_sensor(esphome::sensor::Sensor *sensor) { this->lights_color_exterior_sensor_ = sensor; }
 	void set_lights_main_loop_speed_sensor(esphome::sensor::Sensor *sensor) { this->lights_main_loop_speed_sensor_ = sensor; }
+	void set_iq_va_sensor(esphome::sensor::Sensor *sensor) { this->iq_va_sensor_ = sensor; }
+	void set_iq_vb_sensor(esphome::sensor::Sensor *sensor) { this->iq_vb_sensor_ = sensor; }
+	void set_iq_vc_sensor(esphome::sensor::Sensor *sensor) { this->iq_vc_sensor_ = sensor; }
+	void set_iq_vd_sensor(esphome::sensor::Sensor *sensor) { this->iq_vd_sensor_ = sensor; }
+	void set_iq_chlorine_sensor(esphome::sensor::Sensor *sensor) { this->iq_chlorine_sensor_ = sensor; }
+	void set_iq_ph_sensor(esphome::sensor::Sensor *sensor) { this->iq_ph_sensor_ = sensor; }
+	void set_iq_hoursleft_sensor(esphome::sensor::Sensor *sensor) { this->iq_hoursleft_sensor_ = sensor; }
 #endif
 #ifdef USE_TEXT_SENSOR
 	void set_version_sensor(esphome::text_sensor::TextSensor *text) { this->version_sensor_ = text; }
@@ -139,6 +153,7 @@ public:
 	void numberAction(unsigned int numberid, int state);
 #endif
 	void setTempAction(float newtemp);
+	void setTime(int hour, int minute, int second, int year, int month, int day);
 
 protected:
 	void publish_sensor();
@@ -168,17 +183,21 @@ protected:
 	size_t buf_size_;
 	esphome::GPIOPin *flow_control_pin_{ nullptr };
 	esphome::GPIOPin *trigger_poll_pin_{ nullptr };
+	bool legacy_polling_;
 	bool ace_emulation_;
 	unsigned char ace_flags = 1;     // 0x01 = Functioning, 0x04 = Boosting, 0x08 = Testing
 	unsigned char ace_status = 3;    // 0 to 7 with 3 or 4 being ideal.
 	bool freshwater_emulation_;
 	bool audio_emulation_;
+	bool active_;
+	unsigned char audio_module_address = 0x33; // There are two audio modules at 0x33 or 0x1D.
 	int polling_rate_;
 
 #ifdef USE_BINARY_SENSOR
 	esphome::binary_sensor::BinarySensor *connected_sensor_;
 	esphome::binary_sensor::BinarySensor *connectionkit_sensor_;
 	esphome::binary_sensor::BinarySensor *salt_boost_sensor_;
+	esphome::binary_sensor::BinarySensor *salt_confirmed_sensor_;
 #endif
 #ifdef USE_SENSOR
 	esphome::sensor::Sensor *current_f_temp_sensor_;
@@ -222,6 +241,13 @@ protected:
 	esphome::sensor::Sensor *lights_color_pillow_sensor_;
 	esphome::sensor::Sensor *lights_color_exterior_sensor_;
 	esphome::sensor::Sensor *lights_main_loop_speed_sensor_;
+	esphome::sensor::Sensor *iq_va_sensor_;
+	esphome::sensor::Sensor *iq_vb_sensor_;
+	esphome::sensor::Sensor *iq_vc_sensor_;
+	esphome::sensor::Sensor *iq_vd_sensor_;
+	esphome::sensor::Sensor *iq_chlorine_sensor_;
+	esphome::sensor::Sensor *iq_ph_sensor_;
+	esphome::sensor::Sensor *iq_hoursleft_sensor_;
 #endif
 #ifdef USE_TEXT_SENSOR
 	esphome::text_sensor::TextSensor *version_sensor_;
@@ -245,6 +271,8 @@ protected:
 	int number_pending[NUMBERCOUNT]; // Desired state of all numbers
 #endif
 	unsigned long connectionKit = 0; // The time the spa connection kit was last seen
+	int got_audio_data = 0;
+	int got_iq_data = 0;
 	bool temp_celsius = false;
 	int temp_action = NOT_SET;
 	float target_temp = NOT_SET;
@@ -265,7 +293,7 @@ protected:
 	// IQ2020 processing
 	int nextPossiblePacket();
 	unsigned char processingBuffer[IQ202BUFLEN];
-	unsigned char outboundBuffer[64];
+	unsigned char outboundBuffer[IQ2020OUTBUFLEN];
 	int processingBufferLen = 0;
 	void processRawIQ2020Data(unsigned char *data, int len);
 	int processIQ2020Command();
@@ -275,3 +303,5 @@ protected:
 	void setNumberState(unsigned int numberid, int value);
 	void pollState();
 };
+
+extern IQ2020Component* g_iq2020_main;
