@@ -42,6 +42,7 @@ using namespace esphome;
 float fahrenheit_to_celsius(float f) { return (f - 32) * 5 / 9; }
 float celsius_to_fahrenheit(float c) { return c * 9 / 5 + 32; }
 int readCounter(unsigned char* data, int offset) { return (data[offset]) + (data[offset + 1] << 8) + (data[offset + 2] << 16) + (data[offset + 3] << 24); }
+int readCounterEx(unsigned char* data, int offset) { return (data[offset] << 24) + (data[offset + 1] << 16) + (data[offset + 2] << 8) + (data[offset + 3]); }
 
 void IQ2020Component::setup() {
 	for (int i = 0; i < SWITCHCOUNT; i++) { switch_state[i] = switch_pending[i] = NOT_SET; }
@@ -54,10 +55,9 @@ void IQ2020Component::setup() {
 
 	g_iq2020_main = this;
 	if (this->flow_control_pin_ != nullptr) { this->flow_control_pin_->setup(); }
-	if (this->trigger_poll_pin_ != nullptr) { 
+	if (this->trigger_poll_pin_ != nullptr) {
 		this->trigger_poll_pin_->pin_mode(gpio::FLAG_INPUT);
-		this->trigger_poll_pin_->setup(); 
-
+		this->trigger_poll_pin_->setup();
 	}
 	//ESP_LOGD(TAG, "Setting up IQ2020...");
 
@@ -108,7 +108,7 @@ void IQ2020Component::loop() {
 			}
 		}
 #ifdef USE_SELECT
-		for (int selectid = 0; selectid <= SELECT_AUDIO_SOURCE; selectid++) {
+		for (int selectid = 0; selectid < SELECTCOUNT; selectid++) {
 			if (select_pending[selectid] != NOT_SET) {
 				ESP_LOGE(TAG, "Retry select %d set to %d", selectid, select_pending[selectid]);
 				selectAction(selectid, select_pending[selectid]); // Try again
@@ -141,15 +141,16 @@ void IQ2020Component::loop() {
 #endif
 		connectionKit = 1;
 	}
-	//check if pin goes high, if it does then lets log something... for now...
-	bool pinState = this->trigger_poll_pin_->digital_read();
-	//grace period if the event hasnt fired in the last second
-	if(pinState && (now - last_pin_check_time >= 1000)){
-		ESP_LOGD(TAG, "Trigger Pin High, issuing poll.");
-		last_pin_check_time = now; // Update the last check time
-		pollState();
+	if (this->trigger_poll_pin_ != nullptr) {
+		// Check if pin goes high, if it does then lets log something... for now...
+		bool pinState = this->trigger_poll_pin_->digital_read();
+		// Grace period if the event hasnt fired in the last second
+		if (pinState && (now - last_pin_check_time >= 1000)) {
+			ESP_LOGD(TAG, "Trigger Pin High, issuing poll.");
+			last_pin_check_time = now; // Update the last check time
+			pollState();
+		}
 	}
-
 
 	if (next_poll < now) { next_poll = now + 5000; pollState(); }
 }
@@ -329,7 +330,8 @@ void IQ2020Component::setAudioButton(int button) {
 
 int IQ2020Component::processIQ2020Command() {
 	if (processingBufferLen < 6) return 0; // Need more data
-	if ((processingBuffer[0] != 0x1C) || ((processingBuffer[4] != 0x40) && (processingBuffer[4] != 0x80))) { ESP_LOGD(TAG, "Receive buffer out of sync!"); return nextPossiblePacket(); } // Out of sync
+	// operation flag 0x00 seen being sent to audio module when turning device off
+	if ((processingBuffer[0] != 0x1C) || ((processingBuffer[4] != 0x40) && (processingBuffer[4] != 0x80) && (processingBuffer[4] != 0x00))) { ESP_LOGD(TAG, "Receive buffer out of sync!"); return nextPossiblePacket(); } // Out of sync
 	int cmdlen = 6 + processingBuffer[3];
 	if (processingBufferLen < cmdlen) return 0; // Need more data
 	unsigned char checksum = 0; // Compute the checksum
@@ -337,6 +339,7 @@ int IQ2020Component::processIQ2020Command() {
 	if (processingBuffer[cmdlen - 1] != (checksum ^ 0xFF)) { ESP_LOGD(TAG, "Invalid checksum. Got 0x%02x, expected 0x%02x.", processingBuffer[cmdlen - 1], (checksum ^ 0xFF)); return nextPossiblePacket(); }
 	//ESP_LOGD(TAG, "IQ2020 data, dst:%02x src:%02x op:%02x datalen:%d", processingBuffer[1], processingBuffer[2], processingBuffer[4], processingBuffer[3]);
 
+	// Spa Connection Kit -> IQ2020 Request
 	if ((processingBuffer[1] == 0x01) && (processingBuffer[2] == 0x1F) && (processingBuffer[4] == 0x40)) {
 		// This is a request command from the SPA connection kit, take note of this.
 		// Presence of this device will cause us to no longer poll for state since this device will do it for us.
@@ -351,9 +354,11 @@ int IQ2020Component::processIQ2020Command() {
 		//ESP_LOGD(TAG, "SCK CMD Data, len=%d, cmd=%02x%02x", cmdlen, processingBuffer[5], processingBuffer[6]);
 	}
 
-	if ((processingBuffer[1] == 0x1D) && (processingBuffer[2] == 0x01) && (processingBuffer[4] == 0x40) && (cmdlen >= 8)) {
+	// IQ2020 -> Audio Module Request
+	if (((processingBuffer[1] == 0x33) || (processingBuffer[1] == 0x1D)) && (processingBuffer[2] == 0x01) && (processingBuffer[4] == 0x40) && (cmdlen >= 8)) {
 		// This is a command from IQ2020 to the audio module
 		//ESP_LOGD(TAG, "Audio REQ Data, len=%d, cmd=%02x%02x", cmdlen, processingBuffer[5], processingBuffer[6]);
+		audio_module_address = processingBuffer[1]; // There are two audio modules at 0x33 or 0x1D.
 
 		int responded = 0;
 		if ((processingBuffer[5] == 0x19) && (cmdlen >= 9)) {
@@ -371,10 +376,18 @@ int IQ2020Component::processIQ2020Command() {
 				setSelectState(SELECT_AUDIO_SOURCE, processingBuffer[7]);
 #endif
 			}
-			else if ((processingBuffer[6] == 0x00) && (processingBuffer[7] == 0x01) && (cmdlen == 14)) { // Audio settings
+			else if ((processingBuffer[6] == 0x00) && (cmdlen == 14)) { // Audio settings
+				// Power status could be determined here, but it's best set in the response from the Audio module
+				// processingBuffer[7] == 0x01 -- On
+				// processingBuffer[7] == 0x02 -- Off
+				//setSwitchState(SWITCH_AUDIO_POWER, (int)(processingBuffer[7] == 0x1));
 #ifdef USE_NUMBER
-				ESP_LOGD(TAG, "AUDIO - Volume=%d, Treble=%d, Bass=%d, Balance=%d, Subwoofer=%d", processingBuffer[8], processingBuffer[9], processingBuffer[10], processingBuffer[11], processingBuffer[12]);
-				setNumberState(NUMBER_AUDIO_VOLUME, processingBuffer[8]);
+				ESP_LOGD(TAG, "AUDIO - Power=%d, Volume=%d, Treble=%d, Bass=%d, Balance=%d, Subwoofer=%d", processingBuffer[7], processingBuffer[8], processingBuffer[9], processingBuffer[10], processingBuffer[11], processingBuffer[12]);
+				if (audio_module_address == 0x33) { // 0x33
+					setNumberState(NUMBER_AUDIO_VOLUME, (processingBuffer[8] - 15) << 2);
+				} else { // 0x1D
+					setNumberState(NUMBER_AUDIO_VOLUME, (((int)processingBuffer[8]) * 100) / 40);
+				}
 				setNumberState(NUMBER_AUDIO_TREBLE, (signed char)(processingBuffer[9]));
 				setNumberState(NUMBER_AUDIO_BASS, (signed char)(processingBuffer[10]));
 				setNumberState(NUMBER_AUDIO_BALANCE, (signed char)(processingBuffer[11]));
@@ -392,7 +405,9 @@ int IQ2020Component::processIQ2020Command() {
 					memcpy(text + 2, g_iq2020_text[TEXT_SONG_TITLE]->text_value.c_str(), text_len - 2);
 				}
 #endif
-				sendIQ2020Command(0x01, 0x1D, 0x80, (unsigned char*)text, text_len);
+				if (audio_emulation_) {
+					sendIQ2020Command(0x01, audio_module_address, 0x80, (unsigned char*)text, text_len);
+				}
 				responded = 1;
 			}
 			else if (processingBuffer[6] == 0x07) { // Artist name
@@ -406,7 +421,9 @@ int IQ2020Component::processIQ2020Command() {
 					memcpy(text + 2, g_iq2020_text[TEXT_ARTIST_NAME]->text_value.c_str(), text_len - 2);
 				}
 #endif
-				sendIQ2020Command(0x01, 0x1D, 0x80, (unsigned char*)text, text_len);
+				if (audio_emulation_) {
+					sendIQ2020Command(0x01, audio_module_address, 0x80, (unsigned char*)text, text_len);
+				}
 				responded = 1;
 			}
 		}
@@ -414,12 +431,60 @@ int IQ2020Component::processIQ2020Command() {
 		// Audio emulation
 		if (audio_emulation_ && (responded == 0)) {
 			//ESP_LOGD(TAG, "AUDIO - Enumlate");
+			// These numbers below are a complete guess, I need real ones.
+			// They likely tell the IQ2020 controller what source inputs are available and other things.
 			unsigned char cmd[] = { 0x19, 0x01, 0x00, 0x19, 0x00, 0x00, 0x00, 0x0B, 0x00, 0x04, 0x01, 0x00, 0x00 };
 			//unsigned char cmd[] = { processingBuffer[5], processingBuffer[6] }; // Echo back the command with no data
-			sendIQ2020Command(0x01, 0x1D, 0x80, cmd, sizeof(cmd));
+			sendIQ2020Command(0x01, audio_module_address, 0x80, cmd, sizeof(cmd));
 		}
 	}
 
+	// Audio Module -> IQ2020 Response
+	if ((processingBuffer[1] == 0x01) && ((processingBuffer[2] == 0x33) || (processingBuffer[2] == 0x1D)) && (processingBuffer[4] == 0x80) && (cmdlen >= 8)) {
+		// This is a response from the audio module to the IQ2020 -- Contains current status information
+		// <-- 01 33 80 190102
+		//ESP_LOGD(TAG, "Audio RES Data, len=%d, cmd=%02x%02x", cmdlen, processingBuffer[5], processingBuffer[6]);
+		audio_module_address = processingBuffer[2]; // There are two audio modules at 0x33 or 0x1D.
+
+		// Header for all audio commands, should always be set, but check just in case
+		if (processingBuffer[5] == 0x19) {
+			// This is purely used to report power status
+			if ((processingBuffer[6] == 0x01) && (cmdlen == 9)) { // Audio power
+				//          050607
+				// 01 33 80 190102 -- 07: 0x1 == on, 0x2 == off
+				setSwitchState(SWITCH_AUDIO_POWER, (int)(processingBuffer[7] == 0x1));
+			} 
+			else if ((processingBuffer[6] == 0x00) && (cmdlen == 14)) { // Audio settings
+				// These are currently processed as part of the REQ from IQ to Audio Module
+				// TODO: Should they be processed here instead? That will likely effect the AM emulation
+			}
+		}
+	}
+
+	// Freshwater IQ Response
+	if ((processingBuffer[2] == 0x37) && (processingBuffer[4] == 0x80) && (cmdlen == 36) && (processingBuffer[5] == 0x23) && (processingBuffer[6] == 0xD1)) {
+		// This is a status command from Freshwater IQ
+		if (got_iq_data < 5) { got_iq_data = 5; pollState(); }
+		int iq_va = readCounterEx(processingBuffer, 7);  // Unknown value, always zero
+		int iq_vb = readCounterEx(processingBuffer, 11); // Unknown value, always zero
+		int iq_vc = readCounterEx(processingBuffer, 15); // Unknown value
+		int iq_vd = readCounterEx(processingBuffer, 19); // Unknown value
+		int iq_ve = readCounterEx(processingBuffer, 23); // Chlorine level
+		int iq_vf = readCounterEx(processingBuffer, 27); // Ph Level
+		int iq_vg = readCounterEx(processingBuffer, 31); // Cartridge life countdown.
+
+#ifdef USE_SENSOR
+		if (this->iq_va_sensor_) this->iq_va_sensor_->publish_state((float)iq_va);
+		if (this->iq_vb_sensor_) this->iq_vb_sensor_->publish_state((float)iq_vb);
+		if (this->iq_vc_sensor_) this->iq_vc_sensor_->publish_state((float)iq_vc);
+		if (this->iq_vd_sensor_) this->iq_vd_sensor_->publish_state((float)iq_vd);
+		if (this->iq_chlorine_sensor_) this->iq_chlorine_sensor_->publish_state(((float)iq_ve) / 10);
+		if (this->iq_ph_sensor_) this->iq_ph_sensor_->publish_state(((float)iq_vf) / 10);
+		if (this->iq_hoursleft_sensor_) this->iq_hoursleft_sensor_->publish_state((float)iq_vg);
+#endif
+	}
+
+	// IQ2020 -> Salt System Request
 	if (((processingBuffer[1] == 0x24) || (processingBuffer[1] == 0x29)) && (processingBuffer[2] == 0x01) && (processingBuffer[4] == 0x40) && (cmdlen == 21) && (processingBuffer[5] == 0x1E) && (processingBuffer[6] == 0x01)) {
 		// This is a command from IQ2020 to the Salt System
 		//ESP_LOGD(TAG, "Salt REQ Data, len=%d, cmd=%02x%02x", cmdlen, processingBuffer[5], processingBuffer[6]);
@@ -466,6 +531,7 @@ int IQ2020Component::processIQ2020Command() {
 		}
 	}
 
+	// Salt System -> IQ2020 Response
 	if ((processingBuffer[1] == 0x01) && ((processingBuffer[2] == 0x24) || (processingBuffer[2] == 0x29)) && (processingBuffer[4] == 0x80) && (cmdlen == 21) && (processingBuffer[5] == 0x1E) && (processingBuffer[6] == 0x01)) {
 		// This is a reply command from the Salt System to the IQ2020
 		//ESP_LOGD(TAG, "Salt RSP Data, len=%d, cmd=%02x%02x, power=%d", cmdlen, processingBuffer[5], processingBuffer[6], processingBuffer[7]);
@@ -482,6 +548,7 @@ int IQ2020Component::processIQ2020Command() {
 		setSwitchState(SWITCH_SALT_BOOST, (processingBuffer[12] & 0x04) != 0);
 	}
 
+	// IQ2020 -> SPA connection kit Response
 	if ((processingBuffer[1] == 0x1F) && (processingBuffer[2] == 0x01) && (processingBuffer[4] == 0x80)) {
 		// This is response data going towards the SPA connection kit.
 		//ESP_LOGD(TAG, "SCK RSP Data, len=%d, cmd=%02x%02x", cmdlen, processingBuffer[5], processingBuffer[6]);
@@ -494,18 +561,26 @@ int IQ2020Component::processIQ2020Command() {
 
 		if ((cmdlen == 9) && (processingBuffer[5] == 0x19) && (processingBuffer[6] == 0x00) && (processingBuffer[7] == 0x06)) {
 			// Confirmation that the audio command was received
+			setSwitchState(SWITCH_AUDIO_POWER, NOT_SET);
 #ifdef USE_SELECT
 			setSelectState(SELECT_AUDIO_SOURCE, NOT_SET);
 #endif
 		}
 
 		if ((cmdlen == 19) && (processingBuffer[5] == 0x19) && (processingBuffer[6] == 0x01)) {
+			if (got_audio_data < 5) { got_audio_data = 5; pollState(); }
+
 			// Status of audio module
+			setSwitchState(SWITCH_AUDIO_POWER, processingBuffer[7]); // Audio Power Status
 #ifdef USE_SELECT
 			setSelectState(SELECT_AUDIO_SOURCE, processingBuffer[14]); // Audio Source
 #endif
 #ifdef USE_NUMBER
-			setNumberState(NUMBER_AUDIO_VOLUME, processingBuffer[8]);
+			if (audio_module_address == 0x33) { // 0x33
+				setNumberState(NUMBER_AUDIO_VOLUME, (processingBuffer[8] - 15) << 2);
+			} else { // 0x1D
+				setNumberState(NUMBER_AUDIO_VOLUME, (((int)processingBuffer[8]) * 100) / 40);
+			}
 			setNumberState(NUMBER_AUDIO_TREBLE, (signed char)processingBuffer[9]);
 			setNumberState(NUMBER_AUDIO_BASS, (signed char)processingBuffer[10]);
 			setNumberState(NUMBER_AUDIO_BALANCE, (signed char)processingBuffer[11]);
@@ -667,10 +742,10 @@ int IQ2020Component::processIQ2020Command() {
 			next_poll = ::millis() + 5000; // Perform state polling in the next 5 seconds to update heater status.
 		}
 
-		if ((cmdlen == 140) && (processingBuffer[5] == 0x02) && (processingBuffer[6] == 0x56)) {
+		if (((cmdlen == 140) && (processingBuffer[5] == 0x02) && (processingBuffer[6] == 0x56)) || ((cmdlen == 123) && (processingBuffer[5] == 0x02) && (processingBuffer[6] == 0x55))) {
 			// This is the main status data (jets, temperature)
 #ifdef USE_SELECT
-			if (!versionstr.empty() && (select_state[SELECT_AUDIO_SOURCE] != NOT_SET)) { next_poll = ::millis() + (this->polling_rate_ * 1000); } // Next poll
+			if (!versionstr.empty() && ((select_state[SELECT_AUDIO_SOURCE] != NOT_SET) || (got_audio_data > 3))) { next_poll = ::millis() + (this->polling_rate_ * 1000); } // Next poll
 #else
 			if (!versionstr.empty()) { next_poll = ::millis() + (this->polling_rate_ * 1000); } // Next poll
 #endif
@@ -682,6 +757,12 @@ int IQ2020Component::processIQ2020Command() {
 			setSwitchState(SWITCH_SPALOCK, (flags1 & 0x02) != 0);
 			setSwitchState(SWITCH_CLEANCYCLE, (flags1 & 0x10) != 0);
 			setSwitchState(SWITCH_SUMMERTIMER, (flags1 & 0x20) != 0);
+
+#ifdef USE_BINARY_SENSOR
+			if (this->salt_confirmed_sensor_) {
+				this->salt_confirmed_sensor_->publish_state((flags1 & 0x40) != 0);
+			}
+#endif
 
 			// Water heater status
 			float heaterActive = (processingBuffer[110] + (processingBuffer[111] << 8));
@@ -782,8 +863,10 @@ int IQ2020Component::processIQ2020Command() {
 			}
 
 			// Misc sensors
-			if (this->pcb_f_temperature_sensor_) this->pcb_f_temperature_sensor_->publish_state((float)processingBuffer[128]);
-			if (this->pcb_c_temperature_sensor_) this->pcb_c_temperature_sensor_->publish_state((float)esphome::fahrenheit_to_celsius((float)processingBuffer[128]));
+			if (cmdlen == 140) {
+				if (this->pcb_f_temperature_sensor_) this->pcb_f_temperature_sensor_->publish_state((float)processingBuffer[128]);
+				if (this->pcb_c_temperature_sensor_) this->pcb_c_temperature_sensor_->publish_state((float)esphome::fahrenheit_to_celsius((float)processingBuffer[128]));
+			}
 			if (this->salt_content_sensor_ && (salt_content >= 0)) this->salt_content_sensor_->publish_state((float)salt_content);
 			if (this->lights_intensity_sensor_) this->lights_intensity_sensor_->publish_state((float)(flags2 >> 4));
 
@@ -829,7 +912,18 @@ int IQ2020Component::processIQ2020Command() {
 	return cmdlen;
 }
 
+void IQ2020Component::setTime(int hour, int minute, int second, int year, int month, int day) {
+	ESP_LOGD(TAG, "setTime, time(h:m:s) = %d:%d:%d, date(y:m:d) = %d:%d:%d", hour, minute, second, year, month, day);
+	unsigned char setTimeCmd[] = { (unsigned char)second, (unsigned char)minute, (unsigned char)hour, (unsigned char)day, (unsigned char)(month - 1), (unsigned char)(year & 0xFF), (unsigned char)(year >> 8) };
+	sendIQ2020Command(0x01, 0x1F, 0x40, setTimeCmd, 7);
+}
+
 void IQ2020Component::sendIQ2020Command(unsigned char dst, unsigned char src, unsigned char op, unsigned char *data, int len) {
+	if (!active_) return; // If not active, don't send anything
+	if (len+5 > IQ2020OUTBUFLEN) {
+		ESP_LOGE(TAG, "IQ2020 Command too large: %d > %d (dst:%02x src:%02x op:%02x)", (len+5), IQ2020OUTBUFLEN, dst, src, op);
+		return;
+	}
 	outboundBuffer[0] = 0x1C;
 	outboundBuffer[1] = dst;
 	outboundBuffer[2] = src;
@@ -904,6 +998,19 @@ void IQ2020Component::switchAction(unsigned int switchid, int state) {
 			unsigned char cmd[] = { 0x1E, 0x02, 0x03, (unsigned char)(state ? 0x08 : 0x00), 0x00 };
 			sendIQ2020Command(0x01, 0x1F, 0x40, cmd, sizeof(cmd));
 		}
+		break;
+	}
+	case SWITCH_AUDIO_POWER: // Audio Power
+	{
+		switch_pending[switchid] = state; // 0 = OFF, 1 = ON
+		unsigned char cmd[] = { 0x19, 0x00, 0x04, (unsigned char)(state ? 0x01 : 0x00), 0x00 };
+		sendIQ2020Command(0x01, 0x1F, 0x40, cmd, sizeof(cmd));
+		break;
+	}
+	case SWITCH_ACTIVE: // Active Mode
+	{
+		active_ = state;
+		setSwitchState(SWITCH_ACTIVE, state);
 		break;
 	}
 	default: { return; }
@@ -981,8 +1088,14 @@ void IQ2020Component::numberAction(unsigned int numberid, int value) {
 	case NUMBER_AUDIO_VOLUME:
 	{
 		number_pending[NUMBER_AUDIO_VOLUME] = value;
-		unsigned char cmd[] = { 0x19, 0x00, 0x01, (unsigned char)(value) };
-		sendIQ2020Command(0x01, 0x1F, 0x40, cmd, sizeof(cmd)); // Change volume
+		if (audio_module_address == 0x33) { // 0x33
+			unsigned char cmd[] = { 0x19, 0x00, 0x01, (unsigned char)((value >> 2) + 15) };
+			sendIQ2020Command(0x01, 0x1F, 0x40, cmd, sizeof(cmd)); // Change volume
+		}
+		else { // 0x1D
+			unsigned char cmd[] = { 0x19, 0x00, 0x01, (unsigned char)((value * 40) / 100) };
+			sendIQ2020Command(0x01, 0x1F, 0x40, cmd, sizeof(cmd)); // Change volume
+		}
 		break;
 	}
 	case NUMBER_AUDIO_TREBLE:
@@ -1146,17 +1259,34 @@ void IQ2020Component::pollState() {
 
 #ifdef USE_SELECT
 	// If we don't have the audio status, fetch it now.
-	if (select_state[SELECT_AUDIO_SOURCE] == NOT_SET) {
+	if ((got_audio_data < 3) && (select_state[SELECT_AUDIO_SOURCE] == NOT_SET || switch_state[SWITCH_AUDIO_POWER] == NOT_SET)) {
 		ESP_LOGD(TAG, "Poll Audio");
+		got_audio_data++;
 		unsigned char cmd[] = { 0x19, 0x01 };
-		sendIQ2020Command(0x01, 0x1F, 0x40, cmd, sizeof(cmd)); // Get version string
+		sendIQ2020Command(0x01, 0x1F, 0x40, cmd, sizeof(cmd)); // Get audio status
 		return;
 	}
 #endif
 
-	ESP_LOGD(TAG, "Poll");
-	unsigned char generalPollCmd[] = { 0x02, 0x56 };
-	sendIQ2020Command(0x01, 0x1F, 0x40, generalPollCmd, 2); // Poll general state
+	if ((got_iq_data < 3) && (this->iq_chlorine_sensor_)) {
+		ESP_LOGD(TAG, "Poll Freshwater IQ");
+		got_iq_data++;
+		// Get Freshwater IQ status. No command can be sent after this one since this module will
+		// respond right away even of more data is being sent.
+		unsigned char cmd[] = { 0x23, 0xD1, 0x00 };
+		sendIQ2020Command(0x37, 0x1F, 0x40, cmd, sizeof(cmd));
+		return;
+	}
+
+	if (legacy_polling_) {
+		ESP_LOGD(TAG, "LegacyPoll");
+		unsigned char generalPollCmd[] = { 0x02, 0x55 };
+		sendIQ2020Command(0x01, 0x1F, 0x40, generalPollCmd, 2); // Legacy poll general state
+	} else {
+		ESP_LOGD(TAG, "Poll");
+		unsigned char generalPollCmd[] = { 0x02, 0x56 };
+		sendIQ2020Command(0x01, 0x1F, 0x40, generalPollCmd, 2); // Poll general state
+	}
 }
 
 IQ2020Component::Client::Client(std::unique_ptr<esphome::socket::Socket> socket, std::string identifier, size_t position)
