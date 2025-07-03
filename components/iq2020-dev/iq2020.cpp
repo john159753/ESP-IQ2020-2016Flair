@@ -386,7 +386,7 @@ int IQ2020Component::processIQ2020Command() {
 				if (audio_module_address == 0x33) { // 0x33
 					setNumberState(NUMBER_AUDIO_VOLUME, (processingBuffer[8] - 15) << 2);
 				} else { // 0x1D
-					setNumberState(NUMBER_AUDIO_VOLUME, (((int)processingBuffer[8]) * 100) / 40);
+					setNumberState(NUMBER_AUDIO_VOLUME, processingBuffer[8]);
 				}
 				setNumberState(NUMBER_AUDIO_TREBLE, (signed char)(processingBuffer[9]));
 				setNumberState(NUMBER_AUDIO_BASS, (signed char)(processingBuffer[10]));
