@@ -386,7 +386,7 @@ int IQ2020Component::processIQ2020Command() {
 				// processingBuffer[7] == 0x02 -- Off
 				//setSwitchState(SWITCH_AUDIO_POWER, (int)(processingBuffer[7] == 0x1));
 #ifdef USE_NUMBER
-				ESP_LOGD(TAG, "AUDIO - Power=%d, Volume=%d, Treble=%d, Bass=%d, Balance=%d, Subwoofer=%d", processingBuffer[7], processingBuffer[8], processingBuffer[9], processingBuffer[10], processingBuffer[11], processingBuffer[12]);
+				ESP_LOGD(TAG, "AUDIO - Power=%d, Volume=%d, Treble=%d, Bass=%d, Balance=%d, Subwoofer=%d", processingBuffer[7], processingBuffer[8], processingBuffer[9], processingBuffer[10], processingBuffer[11], processingBuffer[12], processingBuffer[13]);
 				if (audio_module_address == 0x33) { // 0x33
 					setNumberState(NUMBER_AUDIO_VOLUME, (processingBuffer[8] - 15) << 2);
 				} else { // 0x1D
