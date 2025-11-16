@@ -382,8 +382,9 @@ int IQ2020Component::processIQ2020Command() {
 			}
 			else if ((processingBuffer[6] == 0x04) && (cmdlen == 9)) { // Channel Options -- kinda pointless, only goes up to 5... but in the spirit of completeness...
 				ESP_LOGD(TAG, "Audio - Channel Data, len=%d, cmd=%02x%02x channel=%d", cmdlen, processingBuffer[5], processingBuffer[6], processingBuffer[7]);
-				#ifdef USE_NUMBER
+#ifdef USE_NUMBER
 				setNumberState(NUMBER_AUDIO_CHANNEL, (signed char)(processingBuffer[7]));
+#endif
 			}
 			else if ((processingBuffer[6] == 0x00) && (cmdlen == 14)) { // Audio settings
 				// Power status could be determined here, but it's best set in the response from the Audio module
