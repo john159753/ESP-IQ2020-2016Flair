@@ -49,7 +49,7 @@
 #define TEXTCOUNT 2
 #define TEXT_SONG_TITLE 0              // Song title (Max 20 chars)
 #define TEXT_ARTIST_NAME 1             // Artist name (Max 20 chars)
-#define NUMBERCOUNT 11
+#define NUMBERCOUNT 12
 #define NUMBER_AUDIO_VOLUME 0          // Audio volume (0 to 100, steps of 4)
 #define NUMBER_AUDIO_TREBLE 1          // Audio treble (-5 to 5)
 #define NUMBER_AUDIO_BASS 2            // Audio base (-5 to 5)
