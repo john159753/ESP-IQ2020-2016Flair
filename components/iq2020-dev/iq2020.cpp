@@ -361,7 +361,7 @@ int IQ2020Component::processIQ2020Command() {
 	// IQ2020 -> Audio Module Request
 	if (((processingBuffer[1] == 0x33) || (processingBuffer[1] == 0x1D)) && (processingBuffer[2] == 0x01) && (processingBuffer[4] == 0x40) && (cmdlen >= 8)) {
 		// This is a command from IQ2020 to the audio module
-		//ESP_LOGD(TAG, "Audio REQ Data, len=%d, cmd=%02x%02x", cmdlen, processingBuffer[5], processingBuffer[6]);
+		ESP_LOGD(TAG, "Audio REQ Data, len=%d, cmd=%02x%02x", cmdlen, processingBuffer[5], processingBuffer[6]);
 		audio_module_address = processingBuffer[1]; // There are two audio modules at 0x33 or 0x1D.
 
 		int responded = 0;
@@ -386,7 +386,7 @@ int IQ2020Component::processIQ2020Command() {
 				// processingBuffer[7] == 0x02 -- Off
 				//setSwitchState(SWITCH_AUDIO_POWER, (int)(processingBuffer[7] == 0x1));
 #ifdef USE_NUMBER
-				ESP_LOGD(TAG, "AUDIO - Power=%d, Volume=%d, Treble=%d, Bass=%d, Balance=%d, Subwoofer=%d", processingBuffer[7], processingBuffer[8], processingBuffer[9], processingBuffer[10], processingBuffer[11], processingBuffer[12], processingBuffer[13]);
+				ESP_LOGD(TAG, "AUDIO - Power=%d, Volume=%d, Treble=%d, Bass=%d, Balance=%d, Subwoofer=%d, Channel=%d", processingBuffer[7], processingBuffer[8], processingBuffer[9], processingBuffer[10], processingBuffer[11], processingBuffer[12], processingBuffer[13]);
 				if (audio_module_address == 0x33) { // 0x33
 					setNumberState(NUMBER_AUDIO_VOLUME, (processingBuffer[8] - 15) << 2);
 				} else { // 0x1D
