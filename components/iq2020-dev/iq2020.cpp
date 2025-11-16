@@ -1144,13 +1144,6 @@ void IQ2020Component::numberAction(unsigned int numberid, int value) {
 		sendIQ2020Command(0x01, 0x1F, 0x40, cmd, sizeof(cmd)); // Change subwoofer
 		break;
 	}
-	case NUMBER_AUDIO_SUBWOOFER:
-	{
-		number_pending[NUMBER_AUDIO_CHANNEL] = value;
-		unsigned char cmd[] = { 0x19, 0x00, 0x08, (unsigned char)value };
-		sendIQ2020Command(0x01, 0x1F, 0x40, cmd, sizeof(cmd)); // Change subwoofer
-		break;
-	}
 	case NUMBER_SALT_POWER:
 	{
 		number_pending[NUMBER_SALT_POWER] = value;
