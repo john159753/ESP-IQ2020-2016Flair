@@ -383,7 +383,7 @@ int IQ2020Component::processIQ2020Command() {
 			else if ((processingBuffer[6] == 0x04) && (cmdlen == 9)) { // Channel Options -- kinda pointless, only goes up to 5... but in the spirit of completeness...
 				ESP_LOGD(TAG, "Audio - Channel Data, len=%d, cmd=%02x%02x channel=%d", cmdlen, processingBuffer[5], processingBuffer[6], processingBuffer[7]);
 #ifdef USE_NUMBER
-				setNumberState(NUMBER_AUDIO_CHANNEL, (signed char)(processingBuffer[7]));
+				setNumberState(NUMBER_AUDIO_CHANNEL, (processingBuffer[7]));
 #endif
 			}
 			else if ((processingBuffer[6] == 0x00) && (cmdlen == 14)) { // Audio settings
@@ -392,7 +392,7 @@ int IQ2020Component::processIQ2020Command() {
 				// processingBuffer[7] == 0x02 -- Off
 				//setSwitchState(SWITCH_AUDIO_POWER, (int)(processingBuffer[7] == 0x1));
 #ifdef USE_NUMBER
-				ESP_LOGD(TAG, "AUDIO - Power=%d, Volume=%d, Treble=%d, Bass=%d, Balance=%d, Subwoofer=%d, Channel=%d", processingBuffer[7], processingBuffer[8], processingBuffer[9], processingBuffer[10], processingBuffer[11], processingBuffer[12], processingBuffer[13]);
+				ESP_LOGD(TAG, "AUDIO - Power=%d, Volume=%d, Treble=%d, Bass=%d, Balance=%d, Subwoofer=%d", processingBuffer[7], processingBuffer[8], processingBuffer[9], processingBuffer[10], processingBuffer[11], processingBuffer[12]);
 				if (audio_module_address == 0x33) { // 0x33
 					setNumberState(NUMBER_AUDIO_VOLUME, (processingBuffer[8] - 15) << 2);
 				} else { // 0x1D
