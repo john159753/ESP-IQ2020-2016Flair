@@ -380,8 +380,10 @@ int IQ2020Component::processIQ2020Command() {
 				setSelectState(SELECT_AUDIO_SOURCE, processingBuffer[7]);
 #endif
 			}
-			else if ((processingBuffer[6] == 0x04) && (cmdlen == 9)) { // Channel Options
+			else if ((processingBuffer[6] == 0x04) && (cmdlen == 9)) { // Channel Options -- kinda pointless, only goes up to 5... but in the spirit of completeness...
 				ESP_LOGD(TAG, "Audio - Channel Data, len=%d, cmd=%02x%02x channel=%d", cmdlen, processingBuffer[5], processingBuffer[6], processingBuffer[7]);
+				#ifdef USE_NUMBER
+				setNumberState(NUMBER_AUDIO_CHANNEL, (signed char)(processingBuffer[7]));
 			}
 			else if ((processingBuffer[6] == 0x00) && (cmdlen == 14)) { // Audio settings
 				// Power status could be determined here, but it's best set in the response from the Audio module
@@ -592,6 +594,14 @@ int IQ2020Component::processIQ2020Command() {
 			setNumberState(NUMBER_AUDIO_BASS, (signed char)processingBuffer[10]);
 			setNumberState(NUMBER_AUDIO_BALANCE, (signed char)processingBuffer[11]);
 			setNumberState(NUMBER_AUDIO_SUBWOOFER, processingBuffer[12]);
+#endif
+		}
+
+		//audio channel
+		if ((cmdlen == 9) && (processingBuffer[5] == 0x19) && (processingBuffer[6] == 0x04)) {
+
+#ifdef USE_NUMBER
+			setNumberState(NUMBER_AUDIO_CHANNEL, (signed char)(processingBuffer[7]));	
 #endif
 		}
 
@@ -1129,6 +1139,13 @@ void IQ2020Component::numberAction(unsigned int numberid, int value) {
 	case NUMBER_AUDIO_SUBWOOFER:
 	{
 		number_pending[NUMBER_AUDIO_SUBWOOFER] = value;
+		unsigned char cmd[] = { 0x19, 0x00, 0x08, (unsigned char)value };
+		sendIQ2020Command(0x01, 0x1F, 0x40, cmd, sizeof(cmd)); // Change subwoofer
+		break;
+	}
+	case NUMBER_AUDIO_SUBWOOFER:
+	{
+		number_pending[NUMBER_AUDIO_CHANNEL] = value;
 		unsigned char cmd[] = { 0x19, 0x00, 0x08, (unsigned char)value };
 		sendIQ2020Command(0x01, 0x1F, 0x40, cmd, sizeof(cmd)); // Change subwoofer
 		break;

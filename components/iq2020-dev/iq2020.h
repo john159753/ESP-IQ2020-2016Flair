@@ -61,6 +61,7 @@
 #define NUMBER_LIGHTS2_INTENSITY 8     // Bartop lights intensity (0 to 5)
 #define NUMBER_LIGHTS3_INTENSITY 9     // Pillow lights intensity (0 to 5)
 #define NUMBER_LIGHTS4_INTENSITY 10    // Exterior lights intensity (0 to 5)
+#define NUMBER_AUDIO_CHANNEL 11         // Audio channel (0 to 5)
 #define NOT_SET -127
 
 class IQ2020Component : public esphome::Component, public esphome::api::CustomAPIDevice {
