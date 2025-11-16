@@ -361,7 +361,7 @@ int IQ2020Component::processIQ2020Command() {
 	// IQ2020 -> Audio Module Request
 	if (((processingBuffer[1] == 0x33) || (processingBuffer[1] == 0x1D)) && (processingBuffer[2] == 0x01) && (processingBuffer[4] == 0x40) && (cmdlen >= 8)) {
 		// This is a command from IQ2020 to the audio module
-		ESP_LOGD(TAG, "Audio REQ Data, len=%d, cmd=%02x%02x", cmdlen, processingBuffer[5], processingBuffer[6]);
+		//ESP_LOGD(TAG, "Audio REQ Data, len=%d, cmd=%02x%02x", cmdlen, processingBuffer[5], processingBuffer[6]);
 		audio_module_address = processingBuffer[1]; // There are two audio modules at 0x33 or 0x1D.
 
 		int responded = 0;
@@ -379,6 +379,9 @@ int IQ2020Component::processIQ2020Command() {
 #ifdef USE_SELECT
 				setSelectState(SELECT_AUDIO_SOURCE, processingBuffer[7]);
 #endif
+			}
+			else if ((processingBuffer[6] == 0x04) && (cmdlen == 9)) { // Channel Options
+				ESP_LOGD(TAG, "Audio - Channel Data, len=%d, cmd=%02x%02x channel=%d", cmdlen, processingBuffer[5], processingBuffer[6], processingBuffer[7]);
 			}
 			else if ((processingBuffer[6] == 0x00) && (cmdlen == 14)) { // Audio settings
 				// Power status could be determined here, but it's best set in the response from the Audio module
